@@ -408,7 +408,6 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
-    <None Include="App.config" />
     <None Include="App.config.sample" />
     <None Include="Framework\Functional\Templates\ct3document.docx" />
     <None Include="Framework\Functional\Templates\ct1document.docx" />
