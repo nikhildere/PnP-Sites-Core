@@ -5403,6 +5403,8 @@ Starts a new instance of a workflow definition against the current web site
 
 > **payload:** Any input argument for the workflow instance
 
+> ##### Return value
+> The ID of the just started workflow instance
 
 #### StartWorkflowInstance(Microsoft.SharePoint.Client.Web,System.Guid,System.Collections.Generic.IDictionary{System.String,System.Object})
 Starts a new instance of a workflow definition against the current web site
@@ -5413,6 +5415,8 @@ Starts a new instance of a workflow definition against the current web site
 
 > **payload:** Any input argument for the workflow instance
 
+> ##### Return value
+> The ID of the just started workflow instance
 
 #### StartWorkflowInstance(Microsoft.SharePoint.Client.ListItem,System.String,System.Collections.Generic.IDictionary{System.String,System.Object})
 Starts a new instance of a workflow definition against the current item
@@ -5423,6 +5427,8 @@ Starts a new instance of a workflow definition against the current item
 
 > **payload:** Any input argument for the workflow instance
 
+> ##### Return value
+> The ID of the just started workflow instance
 
 #### StartWorkflowInstance(Microsoft.SharePoint.Client.ListItem,System.Guid,System.Collections.Generic.IDictionary{System.String,System.Object})
 Starts a new instance of a workflow definition against the current item
@@ -5433,6 +5439,8 @@ Starts a new instance of a workflow definition against the current item
 
 > **payload:** Any input argument for the workflow instance
 
+> ##### Return value
+> The ID of the just started workflow instance
 
 ## SharePoint.Client.ListRatingExtensions
             
@@ -7236,6 +7244,9 @@ Deletes a file from the specified container
 > **container:** Name of the container to delete the file from
 
 
+#### GetFileFromInsidePackage(System.String,System.String)
+Will first try to find the file based on container/filename from the mapped file names. As a fallback it will try to find by container/filename in the pnp file structure, which was the original format.
+
 ## Core.Framework.Provisioning.Connectors.OpenXML.Model.PnPFileInfo
             
 File descriptor for every single file in the PnP OpenXML file
@@ -7296,6 +7307,8 @@ Date and Time of creation for the PnP OpenXML file
 Name of the Generator (engine) of the PnP OpenXML file
 
 ## Core.Framework.Provisioning.Connectors.OpenXML.PnPPackage
+            
+Defines a PnP OpenXML package file
             
 Defines a PnP OpenXML package file
         
