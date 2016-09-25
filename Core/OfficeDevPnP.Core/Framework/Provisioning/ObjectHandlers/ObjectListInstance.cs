@@ -123,17 +123,24 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
                             foreach (var fieldRef in listInfo.TemplateList.FieldRefs)
                             {
                                 var field = rootWeb.GetFieldById<Field>(fieldRef.Id);
-                                if (field != null)
+                                if (field == null)
                                 {
-                                    if (!listInfo.SiteList.FieldExistsById(fieldRef.Id))
-                                    {
-                                        field = CreateFieldRef(listInfo, field, fieldRef);
-                                    }
-                                    else
-                                    {
-                                        field = UpdateFieldRef(listInfo.SiteList, field.Id, fieldRef);
-                                    }
+                                    // log missing referenced field
+                                    this.WriteWarning(string.Format(CoreResources.Provisioning_ObjectHandlers_ListInstances_InvalidFieldReference, listInfo.TemplateList.Title, fieldRef.Name, fieldRef.Id), ProvisioningMessageType.Error);
+
+                                    // move onto next field reference
+                                    continue;
                                 }
+
+                                if (!listInfo.SiteList.FieldExistsById(fieldRef.Id))
+                                {
+                                    field = CreateFieldRef(listInfo, field, fieldRef);
+                                }
+                                else
+                                {
+                                    field = UpdateFieldRef(listInfo.SiteList, field.Id, fieldRef);
+                                }
+                                
                                 field.EnsureProperties(f => f.InternalName, f => f.Title);
 
                                 parser.AddToken(new FieldTitleToken(web, field.InternalName, field.Title));
@@ -170,6 +177,7 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
                                 }
 #endif
                             }
+
                             listInfo.SiteList.Update();
                             web.Context.ExecuteQueryRetry();
                         }
@@ -817,10 +825,12 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
                     existingList.ContentTypesEnabled = templateList.ContentTypesEnabled;
                     isDirty = true;
                 }
-                if (existingList.BaseTemplate != (int)ListTemplateType.Survey && existingList.BaseTemplate != (int)ListTemplateType.DocumentLibrary)
+                if (existingList.BaseTemplate != (int)ListTemplateType.Survey && 
+                    existingList.BaseTemplate != (int)ListTemplateType.DocumentLibrary && 
+                    existingList.BaseTemplate != (int)ListTemplateType.PictureLibrary)
                 {
                     // https://msdn.microsoft.com/EN-US/library/microsoft.sharepoint.splist.enableattachments.aspx
-                    // The EnableAttachments property does not apply to any list that has a base type of Survey or DocumentLibrary.
+                    // The EnableAttachments property does not apply to any list that has a base type of Survey, DocumentLibrary or PictureLibrary.
                     // If you set this property to true for either type of list, it throws an SPException.
                     if (templateList.EnableAttachments != existingList.EnableAttachments)
                     {
@@ -1147,9 +1157,11 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
                 createdList.DocumentTemplateUrl = parser.ParseString(list.DocumentTemplate);
             }
 
-            // EnableAttachments are not supported for DocumentLibraries and Surveys
+            // EnableAttachments are not supported for DocumentLibraries, Survey and PictureLibraries
             // TODO: the user should be warned
-            if (createdList.BaseTemplate != (int)ListTemplateType.DocumentLibrary && createdList.BaseTemplate != (int)ListTemplateType.Survey)
+            if (createdList.BaseTemplate != (int)ListTemplateType.DocumentLibrary && 
+                createdList.BaseTemplate != (int)ListTemplateType.Survey &&
+                createdList.BaseTemplate != (int)ListTemplateType.PictureLibrary)
             {
                 createdList.EnableAttachments = list.EnableAttachments;
             }
@@ -1584,8 +1596,10 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
             return list;
         }
 
+        private List<string> SpecialFields => new List<string>() {"LikedBy"};
+
         private ListInstance ExtractFields(Web web, List siteList, List<FieldRef> contentTypeFields, ListInstance list, List<List> lists, ProvisioningTemplateCreationInformation creationInfo, ProvisioningTemplate template)
-        {
+        {  
             Microsoft.SharePoint.Client.FieldCollection siteColumns = null;
             if (web.IsSubSite())
             {
@@ -1602,7 +1616,7 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
                 web.Context.ExecuteQueryRetry();
             }
 
-            foreach (var field in siteList.Fields.AsEnumerable().Where(field => !field.Hidden))
+            foreach (var field in siteList.Fields.AsEnumerable().Where(field => !field.Hidden || SpecialFields.Contains(field.InternalName)))
             {
                 var siteColumn = siteColumns.FirstOrDefault(sc => sc.Id == field.Id);
                 if (siteColumn != null)
