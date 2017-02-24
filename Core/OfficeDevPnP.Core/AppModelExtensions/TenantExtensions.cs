@@ -678,7 +678,8 @@ namespace Microsoft.SharePoint.Client
             {
                 if (
                      (((ServerException)ex).ServerErrorCode == -2147024809 && ((ServerException)ex).ServerErrorTypeName.Equals("System.ArgumentException", StringComparison.InvariantCultureIgnoreCase)) ||
-                     (((ServerException)ex).ServerErrorCode == -1 && ((ServerException)ex).ServerErrorTypeName.Equals("Microsoft.Online.SharePoint.Common.SpoNoSiteException", StringComparison.InvariantCultureIgnoreCase))                    
+                     (((ServerException)ex).ServerErrorCode == -1 && ((ServerException)ex).ServerErrorTypeName.Equals("Microsoft.Online.SharePoint.Common.SpoNoSiteException", StringComparison.InvariantCultureIgnoreCase)) ||
+                     (((ServerException)ex).ServerErrorCode == -2147024894 && ((ServerException)ex).ServerErrorTypeName.Equals("System.IO.FileNotFoundException", StringComparison.InvariantCultureIgnoreCase))
                     )
                 {
                     return true;

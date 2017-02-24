@@ -14,6 +14,7 @@ using Microsoft.IdentityModel.S2S.Tokens;
 using Microsoft.SharePoint.Client;
 using Log = OfficeDevPnP.Core.Diagnostics.Log;
 using OfficeDevPnP.Core.Utilities;
+using System.Threading.Tasks;
 
 namespace OfficeDevPnP.Core.WebAPI
 {
@@ -94,14 +95,14 @@ namespace OfficeDevPnP.Core.WebAPI
                     WebAPIContextCache.Instance.Put(cacheKey, cacheItem);
                     Log.Info(CoreResources.Services_TokenRefreshed, cacheKey, cacheItem.SharePointServiceContext.HostWebUrl);
                 }
-                 
+
                 return TokenHelper.GetClientContextWithAccessToken(cacheItem.SharePointServiceContext.HostWebUrl, cacheItem.AccessToken.AccessToken);
             }
             else
             {
                 Log.Warning(Constants.LOGGING_SOURCE, CoreResources.Services_CookieWithCachKeyNotFound);
                 throw new Exception("The cookie with the cachekey was not found...nothing can be retrieved from cache, so no clientcontext can be created.");
-            }            
+            }
         }
 
         /// <summary>
@@ -186,7 +187,7 @@ namespace OfficeDevPnP.Core.WebAPI
                     {
                         Value = cacheKey,
                         Secure = true,
-                        HttpOnly = httpOnly,                        
+                        HttpOnly = httpOnly,
                     };
 
                     page.Response.AppendCookie(cookie);
@@ -203,22 +204,25 @@ namespace OfficeDevPnP.Core.WebAPI
                         HostedAppHostName = String.Format("{0}:{1}", page.Request.Url.Host, page.Request.Url.Port),
                     };
 
-                    using (var client = new HttpClient())
+                    using (var cHandler = new HttpClientHandler { UseDefaultCredentials = true })
                     {
-                        client.BaseAddress = serviceEndPoint;
-                        client.DefaultRequestHeaders.Accept.Clear();
-                        client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-
-                        HttpResponseMessage response = await client.PutAsJsonAsync(apiRequest, sharePointServiceContext);
-
-                        if (!response.IsSuccessStatusCode)
+                        using (var client = new HttpClient(cHandler))
                         {
-                            Log.Error(CoreResources.Service_RegistrationFailed, apiRequest, serviceEndPoint.ToString(), cacheKey);
-                            throw new Exception(String.Format("Service registration failed: {0}", response.StatusCode));
+                            client.BaseAddress = serviceEndPoint;
+                            client.DefaultRequestHeaders.Accept.Clear();
+                            client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+
+                            HttpResponseMessage response = await client.PutAsJsonAsync(apiRequest, sharePointServiceContext);
+
+                            if (!response.IsSuccessStatusCode)
+                            {
+                                Log.Error(CoreResources.Service_RegistrationFailed, apiRequest, serviceEndPoint.ToString(), cacheKey);
+                                throw new Exception(String.Format("Service registration failed: {0}", response.StatusCode));
+                            }
+
+                            Log.Info(CoreResources.Services_Registered, apiRequest, serviceEndPoint.ToString(), cacheKey);
+
                         }
-
-                        Log.Info(CoreResources.Services_Registered, apiRequest, serviceEndPoint.ToString(), cacheKey);
-
                     }
                 }
             }

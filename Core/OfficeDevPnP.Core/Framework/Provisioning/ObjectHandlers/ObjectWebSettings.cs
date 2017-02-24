@@ -204,20 +204,20 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
 
                     var webSettings = template.WebSettings;
 #if !ONPREMISES
-                    web.NoCrawl = webSettings.NoCrawl;
+                    //web.NoCrawl = webSettings.NoCrawl;
 
-                    if (!web.IsSubSite() || (web.IsSubSite() && web.HasUniqueRoleAssignments))
-                    {
-                        String requestAccessEmailValue = parser.ParseString(webSettings.RequestAccessEmail);
-                        if (!String.IsNullOrEmpty(requestAccessEmailValue) && requestAccessEmailValue.Length >= 255)
-                        {
-                            requestAccessEmailValue = requestAccessEmailValue.Substring(0, 255);
-                        }
-                        if (!String.IsNullOrEmpty(requestAccessEmailValue))
-                        {
-                            web.RequestAccessEmail = requestAccessEmailValue;
-                        }
-                    }
+                    //if (!web.IsSubSite() || (web.IsSubSite() && web.HasUniqueRoleAssignments))
+                    //{
+                    //    String requestAccessEmailValue = parser.ParseString(webSettings.RequestAccessEmail);
+                    //    if (!String.IsNullOrEmpty(requestAccessEmailValue) && requestAccessEmailValue.Length >= 255)
+                    //    {
+                    //        requestAccessEmailValue = requestAccessEmailValue.Substring(0, 255);
+                    //    }
+                    //    if (!String.IsNullOrEmpty(requestAccessEmailValue))
+                    //    {
+                    //        web.RequestAccessEmail = requestAccessEmailValue;
+                    //    }
+                    //}
 #endif
                     var masterUrl = parser.ParseString(webSettings.MasterPageUrl);
                     if (!string.IsNullOrEmpty(masterUrl))

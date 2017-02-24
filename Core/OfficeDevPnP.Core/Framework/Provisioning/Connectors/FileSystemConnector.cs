@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using OfficeDevPnP.Core.Extensions;
+using System.Web;
 
 namespace OfficeDevPnP.Core.Framework.Provisioning.Connectors
 {
@@ -319,6 +320,7 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.Connectors
             try
             {
                 string filePath = ConstructPath(fileName, container);
+                filePath = HttpContext.Current != null ? HttpContext.Current.Server.MapPath(filePath) : filePath;
 
                 MemoryStream stream;
                 using (FileStream fileStream = File.OpenRead(filePath))

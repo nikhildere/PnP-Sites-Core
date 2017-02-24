@@ -120,21 +120,25 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
             web.Context.ExecuteQueryRetry();
             if (!termStore.ServerObjectIsNull.Value)
             {
-                web.Context.Load(termStore.Groups,
-                    g => g.Include(
-                        tg => tg.Name,
-                        tg => tg.TermSets.Include(
-                            ts => ts.Name,
-                            ts => ts.Id)
-                    ));
-                web.Context.ExecuteQueryRetry();
-                foreach (var termGroup in termStore.Groups)
+                try
                 {
-                    foreach (var termSet in termGroup.TermSets)
+                    web.Context.Load(termStore.Groups,
+                                g => g.Include(
+                                    tg => tg.Name,
+                                    tg => tg.TermSets.Include(
+                                        ts => ts.Name,
+                                        ts => ts.Id)
+                                ));
+                    web.Context.ExecuteQueryRetry();
+                    foreach (var termGroup in termStore.Groups)
                     {
-                        _tokens.Add(new TermSetIdToken(web, termGroup.Name, termSet.Name, termSet.Id));
+                        foreach (var termSet in termGroup.TermSets)
+                        {
+                            _tokens.Add(new TermSetIdToken(web, termGroup.Name, termSet.Name, termSet.Id));
+                        }
                     }
                 }
+                catch (Exception){ }
             }
 
             _tokens.Add(new SiteCollectionTermGroupIdToken(web));
@@ -169,19 +173,22 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
                 List<Tuple<string, uint, string>> resourceEntries = new List<Tuple<string, uint, string>>();
                 foreach (var localizationEntry in template.Localizations)
                 {
-                    var filePath = localizationEntry.ResourceFile;
-                    using (var stream = template.Connector.GetFileStream(filePath))
+                    if ((uint)localizationEntry.LCID == web.Language)
                     {
-                        if (stream != null)
+                        var filePath = localizationEntry.ResourceFile;
+                        using (var stream = template.Connector.GetFileStream(filePath))
                         {
-                            using (ResXResourceReader resxReader = new ResXResourceReader(stream))
+                            if (stream != null)
                             {
-                                foreach (DictionaryEntry entry in resxReader)
+                                using (ResXResourceReader resxReader = new ResXResourceReader(stream))
                                 {
-                                    resourceEntries.Add(new Tuple<string, uint, string>(entry.Key.ToString(), (uint)localizationEntry.LCID, entry.Value.ToString()));
+                                    foreach (DictionaryEntry entry in resxReader)
+                                    {
+                                        resourceEntries.Add(new Tuple<string, uint, string>(entry.Key.ToString(), (uint)localizationEntry.LCID, entry.Value.ToString()));
+                                    }
                                 }
                             }
-                        }
+                        } 
                     }
                 }
 

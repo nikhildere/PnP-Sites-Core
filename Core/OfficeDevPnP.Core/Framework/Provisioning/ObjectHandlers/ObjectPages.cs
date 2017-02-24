@@ -112,6 +112,8 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
 
                         foreach (var webpart in page.WebParts)
                         {
+                            webpart.Title = parser.ParseString(webpart.Title);
+
                             if (existingWebParts.FirstOrDefault(w => w.WebPart.Title == webpart.Title) == null)
                             {
                                 WebPartEntity wpEntity = new WebPartEntity();
