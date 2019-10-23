@@ -455,7 +455,7 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
                         }
                         catch (Exception) { }
                 }
-                }
+
 
                 if (tokenIds.Contains("sitecollectiontermgroupid"))
                     _tokens.Add(new SiteCollectionTermGroupIdToken(web));
@@ -1115,5 +1115,6 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
             return tokenIds;
         }
     }
-}
 
+
+}
