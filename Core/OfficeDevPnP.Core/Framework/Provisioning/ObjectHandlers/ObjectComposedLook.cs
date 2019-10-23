@@ -16,13 +16,22 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
             get { return "Composed Looks"; }
         }
 
+        public override string InternalName => "ComposedLooks";
+
         public override TokenParser ProvisionObjects(Web web, ProvisioningTemplate template, TokenParser parser, ProvisioningTemplateApplyingInformation applyingInformation)
         {
             using (var scope = new PnPMonitoredScope(this.Name))
             {
                 if (template.ComposedLook != null &&
-                    !template.ComposedLook.Equals(ComposedLook.Empty))
+                    !template.ComposedLook.IsEmptyOrBlank())
                 {
+                    // Check if this is not a noscript site as themes and composed looks are not supported
+                    if (web.IsNoScriptSite())
+                    {
+                        scope.LogWarning(CoreResources.Provisioning_ObjectHandlers_ComposedLooks_NoSiteCheck);
+                        return parser;
+                    }
+
                     bool executeQueryNeeded = false;
                     if (executeQueryNeeded)
                     {
@@ -67,7 +76,6 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
                     // Persist composed look info in property bag
                     var composedLookJson = JsonConvert.SerializeObject(template.ComposedLook);
                     web.SetPropertyBagValue("_PnP_ProvisioningTemplateComposedLookInfo", composedLookJson);
-
                 }
             }
             return parser;
@@ -303,7 +311,7 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
             String fileUrl = originalFileUrl.Substring(0, originalFileUrl.LastIndexOf("/"));
             String fileName = FixFileName(originalFileUrl.Substring(originalFileUrl.LastIndexOf("/") + 1));
 
-            String result = String.Format("{0}/{1}", fileUrl, fileName);
+            String result = $"{fileUrl}/{fileName}";
 
             return (result);
         }
@@ -332,11 +340,11 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
             return template;
         }
 
-        public override bool WillProvision(Web web, ProvisioningTemplate template)
+        public override bool WillProvision(Web web, ProvisioningTemplate template, ProvisioningTemplateApplyingInformation applyingInformation)
         {
             if (!_willProvision.HasValue)
             {
-                _willProvision = (template.ComposedLook != null && !template.ComposedLook.Equals(ComposedLook.Empty));
+                _willProvision = (template.ComposedLook != null && !template.ComposedLook.IsEmptyOrBlank() && !web.IsNoScriptSite());
             }
             return _willProvision.Value;
         }
@@ -345,7 +353,7 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
         {
             if (!_willExtract.HasValue)
             {
-                _willExtract = true;
+                _willExtract = !web.IsNoScriptSite();
             }
             return _willExtract.Value;
         }

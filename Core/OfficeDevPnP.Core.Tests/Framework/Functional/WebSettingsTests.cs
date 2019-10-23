@@ -3,6 +3,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using OfficeDevPnP.Core.Enums;
 using OfficeDevPnP.Core.Framework.Provisioning.Model;
 using OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers;
+using OfficeDevPnP.Core.Tests.Framework.Functional.Implementation;
 using OfficeDevPnP.Core.Tests.Framework.Functional.Validators;
 using System;
 using System.Collections;
@@ -23,8 +24,8 @@ namespace OfficeDevPnP.Core.Tests.Framework.Functional
         public WebSettingsTests()
         {
             //debugMode = true;
-            //centralSiteCollectionUrl = "https://bertonline.sharepoint.com/sites/TestPnPSC_12345_01efe7c1-e516-4a84-905d-d2763cfed349";
-            //centralSubSiteUrl = "https://bertonline.sharepoint.com/sites/TestPnPSC_12345_01efe7c1-e516-4a84-905d-d2763cfed349/sub";
+            //centralSiteCollectionUrl = "https://bertonline.sharepoint.com/sites/TestPnPSC_12345_f449c481-ce49-4185-9ba1-f30c1752552c";
+            //centralSubSiteUrl = "https://bertonline.sharepoint.com/sites/TestPnPSC_12345_f449c481-ce49-4185-9ba1-f30c1752552c/sub";
         }
         #endregion
 
@@ -47,31 +48,20 @@ namespace OfficeDevPnP.Core.Tests.Framework.Functional
         /// Site WebSettings Test
         /// </summary>
         [TestMethod]
+        [Timeout(15 * 60 * 1000)]
         public void SiteCollectionWebSettingsTest()
         {
-            using (var cc = TestCommon.CreateClientContext(centralSiteCollectionUrl))
-            {
-                // Add supporting files
-                TestProvisioningTemplate(cc, "websettings_files.xml", Handlers.Files);
-
-                var result = TestProvisioningTemplate(cc, "websettings_add.xml", Handlers.WebSettings);
-                WebSettingsValidator wv = new WebSettingsValidator();
-                Assert.IsTrue(wv.Validate(result.SourceTemplate.WebSettings, result.TargetTemplate.WebSettings, result.TargetTokenParser));
-            }
+            new WebSettingsImplementation().SiteCollectionWebSettings(centralSiteCollectionUrl);
         }
 
         /// <summary>
         /// Site Auditsettings Test
         /// </summary>
         [TestMethod]
+        [Timeout(15 * 60 * 1000)]
         public void SiteCollectionAuditSettingsTest()
         {
-            using (var cc = TestCommon.CreateClientContext(centralSiteCollectionUrl))
-            {
-                var result = TestProvisioningTemplate(cc, "auditsettings_add.xml", Handlers.AuditSettings);
-                AuditSettingsValidator av = new AuditSettingsValidator();
-                Assert.IsTrue(av.Validate(result.SourceTemplate.AuditSettings, result.TargetTemplate.AuditSettings, result.TargetTokenParser));
-            }
+            new WebSettingsImplementation().SiteCollectionAuditSettings(centralSiteCollectionUrl);
         }
         #endregion
 
@@ -80,20 +70,10 @@ namespace OfficeDevPnP.Core.Tests.Framework.Functional
         /// Web WebSettings test
         /// </summary>
         [TestMethod]
+        [Timeout(15 * 60 * 1000)]
         public void WebWebSettingsTest()
         {
-            using (var cc = TestCommon.CreateClientContext(centralSiteCollectionUrl))
-            {
-                // Add supporting files
-                TestProvisioningTemplate(cc, "websettings_files.xml", Handlers.Files);
-            }
-
-            using (var cc = TestCommon.CreateClientContext(centralSubSiteUrl))
-            {
-                var result = TestProvisioningTemplate(cc, "websettings_add.xml", Handlers.WebSettings);
-                WebSettingsValidator wv = new WebSettingsValidator();
-                Assert.IsTrue(wv.Validate(result.SourceTemplate.WebSettings, result.TargetTemplate.WebSettings, result.TargetTokenParser));
-            }
+            new WebSettingsImplementation().WebWebSettings(centralSiteCollectionUrl, centralSubSiteUrl);
         }
 
         // Audit settings are only possible on site collection level, hence no test at web level!

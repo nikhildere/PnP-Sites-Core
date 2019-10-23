@@ -3,6 +3,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using OfficeDevPnP.Core.Enums;
 using OfficeDevPnP.Core.Framework.Provisioning.Model;
 using OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers;
+using OfficeDevPnP.Core.Tests.Framework.Functional.Implementation;
 using OfficeDevPnP.Core.Tests.Framework.Functional.Validators;
 using System;
 using System.Collections;
@@ -47,18 +48,10 @@ namespace OfficeDevPnP.Core.Tests.Framework.Functional
         /// Site RegionalSettings Test
         /// </summary>
         [TestMethod]
+        [Timeout(15 * 60 * 1000)]
         public void SiteCollectionRegionalSettingsTest()
         {
-            using (var cc = TestCommon.CreateClientContext(centralSiteCollectionUrl))
-            {
-                var result = TestProvisioningTemplate(cc, "regionalsettings_add.xml", Handlers.RegionalSettings);
-                RegionalSettingsValidator rv = new RegionalSettingsValidator();
-                Assert.IsTrue(rv.Validate(result.SourceTemplate.RegionalSettings, result.TargetTemplate.RegionalSettings, result.TargetTokenParser));
-
-                var result2 = TestProvisioningTemplate(cc, "regionalsettings_delta_1.xml", Handlers.RegionalSettings);
-                RegionalSettingsValidator rv2 = new RegionalSettingsValidator();
-                Assert.IsTrue(rv2.Validate(result2.SourceTemplate.RegionalSettings, result2.TargetTemplate.RegionalSettings, result2.TargetTokenParser));
-            }
+            new RegionalSettingsImplementation().SiteCollectionRegionalSettings(centralSiteCollectionUrl);
         }
         #endregion
 
@@ -67,18 +60,10 @@ namespace OfficeDevPnP.Core.Tests.Framework.Functional
         /// Web RegionalSettings test
         /// </summary>
         [TestMethod]
+        [Timeout(15 * 60 * 1000)]
         public void WebRegionalSettingsTest()
         {
-            using (var cc = TestCommon.CreateClientContext(centralSubSiteUrl))
-            {
-                var result = TestProvisioningTemplate(cc, "regionalsettings_add.xml", Handlers.RegionalSettings);
-                RegionalSettingsValidator rv = new RegionalSettingsValidator();
-                Assert.IsTrue(rv.Validate(result.SourceTemplate.RegionalSettings, result.TargetTemplate.RegionalSettings, result.TargetTokenParser));
-
-                var result2 = TestProvisioningTemplate(cc, "regionalsettings_delta_1.xml", Handlers.RegionalSettings);
-                RegionalSettingsValidator rv2 = new RegionalSettingsValidator();
-                Assert.IsTrue(rv2.Validate(result2.SourceTemplate.RegionalSettings, result2.TargetTemplate.RegionalSettings, result2.TargetTokenParser));
-            }
+            new RegionalSettingsImplementation().WebRegionalSettings(centralSubSiteUrl);
         }
         #endregion
     }

@@ -47,6 +47,38 @@ namespace OfficeDevPnP.Core.Tests.Framework.Functional.Validators
 
         #region Validation methods
 
+        public virtual bool ValidateObjects<T>(T sourceElement, T targetElement, List<string> properties) where T : class
+        {
+            IEnumerable sElements = (IEnumerable)sourceElement;
+            IEnumerable tElements = (IEnumerable)targetElement;
+
+            string key = properties[0];
+            int sourceCount = 0;
+            int targetCount = 0;
+
+            foreach (string property in properties)
+            {
+                foreach (object sElem in sElements)
+                {
+                    sourceCount++;
+                    string sourceKey = sElem.GetType().GetProperty(property).GetValue(sElem).ToString();
+
+                    foreach (object tElem in tElements)
+                    {
+                        string targetKey = tElem.GetType().GetProperty(property).GetValue(tElem).ToString();
+
+                        if (sourceKey.Equals(targetKey))
+                        {
+                            targetCount++;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            return sourceCount == targetCount;
+        }
+
         public virtual bool ValidateObjects<T>(T sourceElement, T targetElement, List<string> properties, TokenParser tokenParser=null, Dictionary<string, string[]> parsedProperties=null) where T : class
         {
             IEnumerable sElements = (IEnumerable)sourceElement;
@@ -331,9 +363,16 @@ namespace OfficeDevPnP.Core.Tests.Framework.Functional.Validators
             {
                 foreach (Microsoft.SharePoint.Client.RoleAssignment r in roles)
                 {
-                    if (r.Member.LoginName.Contains(s.Principal) && r.RoleDefinitionBindings.Where(i => i.Name == s.RoleDefinition).FirstOrDefault() != null)
+                    if (r.Member.LoginName.Contains(s.Principal))
                     {
-                        roleCount++;
+                        if (r.Member.LoginName.Equals("c:0(.s|true", StringComparison.InvariantCultureIgnoreCase))
+                        {
+                            roleCount++;
+                        }
+                        else if (r.RoleDefinitionBindings.Where(i => i.Name == s.RoleDefinition).FirstOrDefault() != null)
+                        {
+                            roleCount++;
+                        }
                     }
                 }
             }

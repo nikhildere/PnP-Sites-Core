@@ -20,6 +20,8 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
 
         }
 
+        public override string InternalName => "ExtensibilityProviders";
+
         public TokenParser AddExtendedTokens(Web web, ProvisioningTemplate template, TokenParser parser, ProvisioningTemplateApplyingInformation applyingInformation)
         {
             using (var scope = new PnPMonitoredScope(this.Name))
@@ -67,7 +69,9 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
             {
                 var context = web.Context as ClientContext;
                 foreach (var handler in template.ExtensibilityHandlers
+#pragma warning disable 618
                     .Union(template.Providers)
+#pragma warning restore 618
                     .Union(applyingInformation.ExtensibilityHandlers))
                 {
                     if (handler.Enabled)
@@ -124,11 +128,15 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
             return template;
         }
 
-        public override bool WillProvision(Web web, ProvisioningTemplate template)
+        public override bool WillProvision(Web web, ProvisioningTemplate template, ProvisioningTemplateApplyingInformation applyingInformation)
         {
             if (!_willProvision.HasValue)
             {
-                _willProvision = template.ExtensibilityHandlers.Union(template.Providers).Any();
+#pragma warning disable 618
+                _willProvision = template.ExtensibilityHandlers
+                    .Union(template.Providers)
+                    .Union(applyingInformation.ExtensibilityHandlers).Any();
+#pragma warning restore 618
             }
             return _willProvision.Value;
         }
