@@ -287,5 +287,51 @@ namespace OfficeDevPnP.Core.Tests.AppModelExtensions
                 Assert.IsTrue(fieldTitle1 != null);
             }
         }
+
+        [TestMethod]
+        public void TestPnPClientContext()
+        {
+            using (var clientContext = TestCommon.CreatePnPClientContext(5, 1000))
+            {
+                var lists = clientContext.Web.Lists;
+
+                clientContext.Load(lists);
+                clientContext.ExecuteQueryRetry();
+
+
+                Assert.IsTrue(lists.Count > 0);
+            }
+        }
+
+        [TestMethod]
+        public void TestPnPClientContextClone()
+        {
+            using (var clientContext = TestCommon.CreatePnPClientContext(5, 1000))
+            {
+                using (var clonedContext = clientContext.Clone(clientContext.Url))
+                {
+                    var lists = clonedContext.Web.Lists;
+                    clonedContext.Load(lists);
+                    clonedContext.ExecuteQueryRetry();
+
+                    Assert.IsTrue(lists.Count > 0);
+                    //Assert.AreEqual(clonedContext.Delay, clientContext.Delay);
+                    //Assert.AreEqual(clonedContext.RetryCount, clientContext.RetryCount);
+                }
+            }
+        }
+
+        [TestMethod]
+        public void TestPnPClientContextCast()
+        {
+            using (var clientContext = TestCommon.CreateClientContext())
+            {
+                var context = PnPClientContext.ConvertFrom(clientContext);
+
+                var lists = context.Web.Lists;
+                context.Load(lists);
+                context.ExecuteQueryRetry();
+            }
+        }
     }
 }

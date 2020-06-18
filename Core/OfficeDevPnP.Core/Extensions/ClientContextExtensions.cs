@@ -39,6 +39,10 @@ namespace Microsoft.SharePoint.Client
         static ClientContextExtensions()
         {
             ClientContextExtensions.userAgentFromConfig = ConfigurationManager.AppSettings["SharePointPnPUserAgent"];
+            if(string.IsNullOrWhiteSpace(ClientContextExtensions.userAgentFromConfig))
+            {
+                ClientContextExtensions.userAgentFromConfig = System.Environment.GetEnvironmentVariable("SharePointPnPUserAgent", EnvironmentVariableTarget.Process);
+            }
         }
 
 
@@ -138,6 +142,10 @@ namespace Microsoft.SharePoint.Client
                 {
                     clientContext.ClientTag = SetClientTag(clientTag);
 
+#if NETSTANDARD2_0
+                    (clientContext as ClientContext).FormDigestHandlingEnabled = false;
+#endif
+
                     // Make CSOM request more reliable by disabling the return value cache. Given we 
                     // often clone context objects and the default value is
 #if !ONPREMISES || SP2016 || SP2019
@@ -152,21 +160,13 @@ namespace Microsoft.SharePoint.Client
 #if !ONPREMISES
                     if (!retry)
                     {
-#if !NETSTANDARD2_0
                         await clientContext.ExecuteQueryAsync();
-#else
-                        clientContext.ExecuteQuery();
-#endif
                     }
                     else
                     {
                         if (wrapper != null && wrapper.Value != null)
                         {
-#if !NETSTANDARD2_0
                             await clientContext.RetryQueryAsync(wrapper.Value);
-#else
-                            clientContext.RetryQuery(wrapper.Value);
-#endif
                         }
                     }
 #else
@@ -183,7 +183,11 @@ namespace Microsoft.SharePoint.Client
                     var response = wex.Response as HttpWebResponse;
                     // Check if request was throttled - http status code 429
                     // Check is request failed due to server unavailable - http status code 503
-                    if (response != null && (response.StatusCode == (HttpStatusCode)429 || response.StatusCode == (HttpStatusCode)503))
+                    if (response != null && 
+                        (response.StatusCode == (HttpStatusCode)429 
+                        || response.StatusCode == (HttpStatusCode)503 
+                        // || response.StatusCode == (HttpStatusCode)500
+                        ))
                     {
                         Log.Warning(Constants.LOGGING_SOURCE, CoreResources.ClientContextExtensions_ExecuteQueryRetry, backoffInterval);
 
@@ -273,7 +277,6 @@ namespace Microsoft.SharePoint.Client
             return clientTag;
         }
 
-
         /// <summary>
         /// Clones a ClientContext object while "taking over" the security context of the existing ClientContext instance
         /// </summary>
@@ -283,13 +286,27 @@ namespace Microsoft.SharePoint.Client
         /// <returns>A ClientContext object created for the passed site URL</returns>
         public static ClientContext Clone(this ClientRuntimeContext clientContext, Uri siteUrl, Dictionary<String, String> accessTokens = null)
         {
+            return Clone(clientContext, new ClientContext(siteUrl), siteUrl, accessTokens);
+        }
+        /// <summary>
+        /// Clones a ClientContext object while "taking over" the security context of the existing ClientContext instance
+        /// </summary>
+        /// <param name="clientContext">ClientContext to be cloned</param>
+        /// <param name="targetContext">CientContext stub to be used for cloning</param>
+        /// <param name="siteUrl">Site URL to be used for cloned ClientContext</param>
+        /// <param name="accessTokens">Dictionary of access tokens for sites URLs</param>
+        /// <returns>A ClientContext object created for the passed site URL</returns>
+        internal static ClientContext Clone(this ClientRuntimeContext clientContext, ClientContext targetContext, Uri siteUrl, Dictionary<String, String> accessTokens = null)
+        {
             if (siteUrl == null)
             {
                 throw new ArgumentException(CoreResources.ClientContextExtensions_Clone_Url_of_the_site_is_required_, nameof(siteUrl));
             }
 
-            ClientContext clonedClientContext = new ClientContext(siteUrl);
+            ClientContext clonedClientContext = targetContext;
+#if !NETSTANDARD2_0
             clonedClientContext.AuthenticationMode = clientContext.AuthenticationMode;
+#endif
             clonedClientContext.ClientTag = clientContext.ClientTag;
 #if !ONPREMISES || SP2016 || SP2019
             clonedClientContext.DisableReturnValueCache = clientContext.DisableReturnValueCache;
@@ -300,6 +317,16 @@ namespace Microsoft.SharePoint.Client
             if (clientContext.Credentials != null)
             {
                 clonedClientContext.Credentials = clientContext.Credentials;
+
+                // In case of existing Event Handlers
+                clonedClientContext.ExecutingWebRequest += (sender, webRequestEventArgs) =>
+                {
+                    // Call the ExecutingWebRequest delegate method from the original ClientContext object, but pass along the webRequestEventArgs of 
+                    // the new delegate method
+                    MethodInfo methodInfo = clientContext.GetType().GetMethod("OnExecutingWebRequest", BindingFlags.Instance | BindingFlags.NonPublic);
+                    object[] parametersArray = new object[] { webRequestEventArgs };
+                    methodInfo.Invoke(clientContext, parametersArray);
+                };
             }
             else
             {
@@ -568,6 +595,76 @@ namespace Microsoft.SharePoint.Client
             }
 
             hasAuthCookies = fedAuth && rtFa;
+        }
+        
+        /// <summary>
+        /// Gets the CookieCollection by cookie name = FedAuth or rtFa
+        /// </summary>
+        /// <param name="clientContext"></param>
+        /// <returns></returns>
+        internal static CookieCollection GetCookieCollection(this ClientRuntimeContext clientContext)
+        {
+            return GetCookieCollection(clientContext, new List<string>
+            {
+                "FedAuth", "rtFa"
+            });
+        }
+
+        /// <summary>
+        /// Gets the CookieCollection by the cookie name. If no cookieNames are passed in it returns all cookies
+        /// </summary>
+        /// <param name="clientContext"></param>
+        /// <param name="cookieNames"></param>
+        /// <returns></returns>
+        internal static CookieCollection GetCookieCollection(this ClientRuntimeContext clientContext, IReadOnlyCollection<string> cookieNames)
+        {
+            CookieCollection cookieCollection = null;
+
+            void Handler(object sender, WebRequestEventArgs e) 
+                => cookieCollection = HandleWebRequest(e, cookieNames);
+
+            clientContext.ExecutingWebRequest += Handler;
+            clientContext.ExecuteQuery();
+            clientContext.ExecutingWebRequest -= Handler;
+
+            return cookieCollection;
+        }
+
+        private static CookieCollection HandleWebRequest(WebRequestEventArgs e, IReadOnlyCollection<string> cookieNames = null)
+        {
+            var cookieCollection = new CookieCollection();
+
+            if (e.WebRequestExecutor?.WebRequest?.CookieContainer == null)
+            {
+                return null;
+            }
+
+            var cookies = e.WebRequestExecutor.WebRequest.CookieContainer
+                .GetCookies(e.WebRequestExecutor.WebRequest.RequestUri);
+
+            if (cookies.Count <= 0)
+            {
+                return null;
+            }
+
+            foreach (Cookie cookie in cookies)
+            {
+                if (cookie == null)
+                {
+                    continue;
+                }
+
+                if (cookieNames == null || !cookieNames.Any())
+                {
+                    cookieCollection.Add(cookie);
+                }
+                else if (cookieNames.Any(r => r.Equals(cookie.Name)))
+                {
+                    cookieCollection.Add(cookie);
+                }
+            }
+            
+            return cookieCollection;
         }
 
         /// <summary>

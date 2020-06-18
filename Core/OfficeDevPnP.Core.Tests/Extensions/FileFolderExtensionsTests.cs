@@ -35,6 +35,19 @@ namespace OfficeDevPnP.Core.Tests.AppModelExtensions
             if (documentLibrary == null)
             {
                 documentLibrary = clientContext.Web.CreateList(ListTemplateType.DocumentLibrary, DocumentLibraryName, false);
+#if SP2013 // SharePoint 2013 Server Side default behaviour does not create a library with major versioning enabled. 
+                documentLibrary.EnsureProperties(
+                    d => d.EnableVersioning,
+                    d => d.MajorVersionLimit);
+
+                if (documentLibrary.EnableVersioning == false)
+                {
+                    documentLibrary.EnableVersioning = true;
+                    documentLibrary.MajorVersionLimit = 10;
+                    documentLibrary.Update();
+                    clientContext.ExecuteQueryRetry();
+                }
+#endif
             }
 
             clientContext.Load(documentLibrary.RootFolder.Folders);
@@ -164,6 +177,7 @@ namespace OfficeDevPnP.Core.Tests.AppModelExtensions
             Assert.AreEqual(fileNameExpected, file.Name);
         }
 
+#if !NETSTANDARD2_0
         [TestMethod]
         public void UploadFileWebDavTest()
         {
@@ -177,6 +191,7 @@ namespace OfficeDevPnP.Core.Tests.AppModelExtensions
 
             Assert.AreEqual(fileNameExpected, file.Name);
         }
+#endif
 
         [TestMethod]
         public void VerifyIfUploadRequiredTest()
@@ -227,9 +242,9 @@ namespace OfficeDevPnP.Core.Tests.AppModelExtensions
             var file3 = folder.GetFile(fileName2);
             Assert.IsNull(file3, "File should not exist, but test shows it does.");
         }
-        #endregion
+#endregion
 
-        #region Folder tests
+#region Folder tests
         [TestMethod]
         public void EnsureSiteFolderTest()
         {
@@ -293,7 +308,61 @@ namespace OfficeDevPnP.Core.Tests.AppModelExtensions
             clientContext.ExecuteQueryRetry();
             Assert.AreEqual(testFolder.ServerRelativeUrl, String.Format("{0}/{1}/{2}",clientContext.Web.ServerRelativeUrl, DocumentLibraryName, folderName));
         }
-        #endregion
+
+        [TestMethod]
+        public void EnsureWebRootFolderPathTest()
+        {
+            string folderName = string.Empty;
+
+            Folder rootFolder = clientContext.Web.EnsureFolderPath(folderName);
+
+            Assert.AreEqual(clientContext.Web.ServerRelativeUrl.TrimEnd('/'), rootFolder.ServerRelativeUrl.TrimEnd('/'));
+        }
+
+        [TestMethod]
+        public void EnsureFolderPathTest()
+        {
+            string folderName = "test_path";
+
+            var testFolder = clientContext.Web.EnsureFolderPath(folderName);
+
+            Assert.AreEqual(string.Format("{0}/{1}", clientContext.Web.ServerRelativeUrl.TrimEnd('/'), folderName), testFolder.ServerRelativeUrl.TrimEnd('/'));
+        }
+
+        [TestMethod]
+        public void EnsureLibraryRootFolderPathTest()
+        {
+            string folderName = DocumentLibraryName;
+
+            Folder libraryRootFolder = clientContext.Web.EnsureFolderPath(folderName);
+
+            Assert.AreEqual(documentLibrary.RootFolder.ServerRelativeUrl.TrimEnd('/'), libraryRootFolder.ServerRelativeUrl.TrimEnd('/'));
+        }
+
+        [TestMethod]
+        public void EnsureLibraryFolderPathTest()
+        {
+            string folderName = "test_path";
+            string folderPath = string.Format("{0}/{1}", DocumentLibraryName, folderName);
+
+            Folder libraryFolder = clientContext.Web.EnsureFolderPath(folderPath);
+
+            clientContext.Load(documentLibrary, d => d.RootFolder, d => d.RootFolder.Folders);
+            clientContext.ExecuteQueryRetry();
+            ensureLibraryFolderTest = null;
+            foreach (Folder existingFolder in documentLibrary.RootFolder.Folders)
+            {
+                if (string.Equals(existingFolder.Name, folderName, StringComparison.InvariantCultureIgnoreCase))
+                {
+                    ensureLibraryFolderTest = existingFolder;
+                    break;
+                }
+            }
+
+            Assert.IsNotNull(ensureLibraryFolderTest);
+            Assert.AreEqual(ensureLibraryFolderTest.ServerRelativeUrl.TrimEnd('/'), libraryFolder.ServerRelativeUrl.TrimEnd('/'));
+        }
+#endregion
 
     }
 }

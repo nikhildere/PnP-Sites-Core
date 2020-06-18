@@ -22,6 +22,8 @@ using OfficeDevPnP.Core.Framework.Provisioning.Model;
 using OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers;
 using OfficeDevPnP.Core.Utilities;
 using Newtonsoft.Json.Linq;
+using OfficeDevPnP.Core.Framework.Provisioning.Model.Configuration;
+using System.Threading.Tasks;
 #endif
 
 namespace Microsoft.SharePoint.Client
@@ -36,10 +38,74 @@ namespace Microsoft.SharePoint.Client
 #if !ONPREMISES
         #region Provisioning
 
-        public static void ApplyProvisionHierarchy(this Tenant tenant, ProvisioningHierarchy hierarchy, string sequenceId, ProvisioningTemplateApplyingInformation applyingInformation = null)
+        /// <summary>
+        /// Applies a template to a tenant
+        /// </summary>
+        /// <param name="tenant"></param>
+        /// <param name="tenantTemplate"></param>
+        /// <param name="sequenceId"></param>
+        /// <param name="configuration"></param>
+        public static void ApplyTenantTemplate(this Tenant tenant, ProvisioningHierarchy tenantTemplate, string sequenceId, ApplyConfiguration configuration = null)
         {
             SiteToTemplateConversion engine = new SiteToTemplateConversion();
-            engine.ApplyProvisioningHierarchy(tenant, hierarchy, sequenceId, applyingInformation);
+            engine.ApplyTenantTemplate(tenant, tenantTemplate, sequenceId, configuration);
+        }
+
+        /// <summary>
+        /// Extracts a template from a tenant
+        /// </summary>
+        /// <param name="tenant"></param>
+        /// <param name="configuration"></param>
+        /// <returns></returns>
+        public static ProvisioningHierarchy GetTenantTemplate(this Tenant tenant, ExtractConfiguration configuration)
+        {
+            return new SiteToTemplateConversion().GetTenantTemplate(tenant, configuration);
+        }
+
+        /// <summary>
+        /// Returns the urls of sites connected to the hubsite specified
+        /// </summary>
+        /// <param name="tenant">A tenant object pointing to the context of a Tenant Administration site</param>
+        /// <param name="hubSiteUrl">The fully qualified url of the hubsite</param>
+        /// <returns></returns>
+        public static List<string> GetHubSiteChildUrls(this Tenant tenant, string hubSiteUrl)
+        {
+            var properties = tenant.GetHubSitePropertiesByUrl(hubSiteUrl);
+            tenant.Context.Load(properties);
+            tenant.Context.ExecuteQueryRetry();
+            return GetHubSiteChildUrls(tenant, properties.ID);
+        }
+
+        /// <summary>
+        /// Returns the urls of sites connected to the hubsite specified
+        /// </summary>
+        /// <param name="tenant">A tenant object pointing to the context of a Tenant Administration site</param>
+        /// <param name="hubsiteId">The id of the hubsite</param>
+        /// <returns></returns>
+        public static List<string> GetHubSiteChildUrls(this Tenant tenant, Guid hubsiteId)
+        {
+            List<string> urls = new List<string>();
+            using (var tenantContext = tenant.Context.Clone((tenant.Context as ClientContext).Web.GetTenantAdministrationUrl()))
+            {
+                var siteList = tenantContext.Web.Lists.GetByTitle("DO_NOT_DELETE_SPLIST_TENANTADMIN_AGGREGATED_SITECOLLECTIONS");
+                var query = new CamlQuery()
+                {
+                    ViewXml = $"<View><Query><Where><And><Eq><FieldRef Name='HubSiteId' /><Value Type='Guid'>{hubsiteId}</Value></Eq><And><Neq><FieldRef Name='SiteId' /><Value Type='Guid'>{hubsiteId}</Value></Neq><IsNull><FieldRef Name='TimeDeleted'/></IsNull></And></And></Where></Query><ViewFields><FieldRef Name='SiteUrl'/></ViewFields></View><RowLimit Paging='TRUE'>100</RowLimit>"
+                };
+
+                do
+                {
+                    var items = siteList.GetItems(query);
+                    tenantContext.Load(items);
+                    tenantContext.ExecuteQueryRetry();
+                    foreach (var item in items)
+                    {
+                        urls.Add(item["SiteUrl"].ToString());
+                    }
+                    query.ListItemCollectionPosition = items.ListItemCollectionPosition;
+                } while (query.ListItemCollectionPosition != null);
+            }
+            return urls;
         }
         #endregion
 
@@ -153,6 +219,66 @@ namespace Microsoft.SharePoint.Client
             };
             return tenant.CreateSiteCollection(siteCol, removeFromRecycleBin, wait, timeoutFunction);
         }
+
+        /// <summary>
+        /// Creates a new App Catalog and registers the app catalog site as the tenant App Catalog.
+        /// </summary>
+        /// <param name="tenant">A tenant object pointing to the context of a Tenant Administration site</param>
+        /// <param name="url">The Full Site Url, e.g. https://yourtenant.sharepoint.com/sites/appcatalog</param>
+        /// <param name="ownerLogin">The username of the owner of the appcatalog, e.g. user@domain.com</param>
+        /// <param name="timeZoneId">TimeZoneId for the appcatalog site. "(UTC+01:00) Brussels, Copenhagen, Madrid, Paris" = 3"</param>
+        /// <param name="force">If true, and an appcatalog is already registered and present, the new appcatalog will be created. If the same URL is provided and the site is present the current one will be deleted and a new one will be created.</param>
+        /// <returns></returns>
+        public static async Task EnsureAppCatalogAsync(this Tenant tenant, string url, string ownerLogin, int timeZoneId, bool force = false)
+        {
+
+            if (string.IsNullOrEmpty(url))
+            {
+                throw new ArgumentException("App Catalog Site Url is required", nameof(url));
+            }
+
+            if (string.IsNullOrEmpty(ownerLogin))
+            {
+                throw new ArgumentException("Owner is required", nameof(ownerLogin));
+            }
+
+            // Check if there is already an app catalog
+            var settings = TenantSettings.GetCurrent(tenant.Context);
+            var appCatalogUrl = await settings.EnsurePropertyAsync(s => s.CorporateCatalogUrl);
+            if (!string.IsNullOrEmpty(appCatalogUrl))
+            {
+                // check if the site exists
+                var siteExistence = tenant.SiteExistsAnywhere(appCatalogUrl);
+                if (siteExistence == SiteExistence.No)
+                {
+                    CreateAppCatalogInternal(tenant, url, ownerLogin, timeZoneId, force);
+                }
+                else if (force)
+                {
+                    DeleteSiteCollection(tenant, appCatalogUrl, false);
+                    CreateAppCatalogInternal(tenant, url, ownerLogin, timeZoneId, force);
+                } else
+                {
+                    throw new Exception($"An App Catalog already exists at {appCatalogUrl} and force is not specified.");
+                }
+            }
+            else
+            {
+                CreateAppCatalogInternal(tenant, url, ownerLogin, timeZoneId, true);
+            }
+        }
+
+        private static void CreateAppCatalogInternal(Tenant tenant, string url, string ownerLogin, int timeZoneId, bool removeFromRecycleBin)
+        {
+            var siteEntity = new SiteEntity
+            {
+                Template = "APPCATALOG#0",
+                SiteOwnerLogin = ownerLogin,
+                TimeZoneId = timeZoneId,
+                Url = url
+            };
+            CreateSiteCollection(tenant, siteEntity, removeFromRecycleBin, true);
+        }
         #endregion
 
         #region Site status checks
@@ -244,12 +370,12 @@ namespace Microsoft.SharePoint.Client
         }
 
         /// <summary>
-        /// Checks if a site collection exists, relies on tenant admin API. Sites that are recycled also return as existing sites
+        /// Checks if a site collection exists, relies on tenant admin API. Sites that are recycled also return as existing sites, but with a different flag
         /// </summary>
         /// <param name="tenant">A tenant object pointing to the context of a Tenant Administration site</param>
         /// <param name="siteFullUrl">URL to the site collection</param>
-        /// <returns>True if existing, false if not</returns>
-        public static bool SiteExists(this Tenant tenant, string siteFullUrl)
+        /// <returns>An enumerated type that can be: No, Yes, Recycled</returns>
+        public static SiteExistence SiteExistsAnywhere(this Tenant tenant, string siteFullUrl)
         {
             try
             {
@@ -259,7 +385,7 @@ namespace Microsoft.SharePoint.Client
                 tenant.Context.ExecuteQueryRetry();
 
                 // Will cause an exception if site URL is not there. Not optimal, but the way it works.
-                return true;
+                return SiteExistence.Yes;
             }
             catch (Exception ex)
             {
@@ -273,21 +399,28 @@ namespace Microsoft.SharePoint.Client
                             var deletedProperties = tenant.GetDeletedSitePropertiesByUrl(siteFullUrl);
                             tenant.Context.Load(deletedProperties);
                             tenant.Context.ExecuteQueryRetry();
-                            return deletedProperties.Status.Equals("Recycled", StringComparison.OrdinalIgnoreCase);
+                            if (deletedProperties.Status.Equals("Recycled", StringComparison.OrdinalIgnoreCase))
+                            {
+                                return SiteExistence.Recycled;
+                            }
+                            else
+                            {
+                                return SiteExistence.No;
+                            }
                         }
                         catch
                         {
-                            return false;
+                            return SiteExistence.No;
                         }
                     }
                     else
                     {
-                        return false;
+                        return SiteExistence.No;
                     }
                 }
                 else
                 {
-                    return true;
+                    return SiteExistence.Yes;
                 }
             }
         }
@@ -494,8 +627,8 @@ namespace Microsoft.SharePoint.Client
             bool? noScriptSite = null,
             bool? commentsOnSitePagesDisabled = null,
             bool? socialBarOnSitePagesDisabled = null,
-            SharingPermissionType? defaultLinkPermission = null,
-            SharingLinkType? defaultSharingLinkType = null,
+            Microsoft.Online.SharePoint.TenantManagement.SharingPermissionType? defaultLinkPermission = null,
+            Microsoft.Online.SharePoint.TenantManagement.SharingLinkType? defaultSharingLinkType = null,
             bool wait = true, Func<TenantOperationMessage, bool> timeoutFunction = null
             )
 #endif
@@ -1165,7 +1298,7 @@ namespace Microsoft.SharePoint.Client
         }
         #endregion
 
-#region Utilities
+        #region Utilities
 
 #if !ONPREMISES
         public static string GetTenantIdByUrl(string tenantUrl)
@@ -1205,7 +1338,26 @@ namespace Microsoft.SharePoint.Client
             return index != -1 ? originalString.Substring(prefix.Length, index - prefix.Length) : null;
         }
 
-#endregion
+        #endregion
 
+    }
+
+    /// <summary>
+    /// Defines the existence status of a Site Collection
+    /// </summary>
+    public enum SiteExistence
+    {
+        /// <summary>
+        /// The Site Collection does not exist
+        /// </summary>
+        No,
+        /// <summary>
+        /// The Site Collection exists
+        /// </summary>
+        Yes,
+        /// <summary>
+        /// The Site Collection is in the Recycle Bin
+        /// </summary>
+        Recycled,
     }
 }

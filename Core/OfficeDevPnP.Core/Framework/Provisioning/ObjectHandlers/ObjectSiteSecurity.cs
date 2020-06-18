@@ -71,7 +71,7 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
 
                         if (setAssociatedOwnerGroup)
                         {
-                            if (parsedAssociatedOwnerGroupName == string.Empty)
+                            if (string.IsNullOrEmpty(parsedAssociatedOwnerGroupName))
                             {
                                 // does throw exception "Value cannot be null" - todo: how to clear the group?
                                 //web.AssociatedOwnerGroup = null;
@@ -114,7 +114,7 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
 
                         if (setAssociatedMemberGroup)
                         {
-                            if (parsedAssociatedMemberGroupName == string.Empty)
+                            if (string.IsNullOrEmpty(parsedAssociatedMemberGroupName))
                             {
                                 // does throw exception "Value cannot be null" - todo: how to clear the group?
                                 //web.AssociatedMemberGroup = null;
@@ -157,7 +157,7 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
 
                         if (setAssociatedVisitorGroup)
                         {
-                            if (parsedAssociatedVisitorGroupName == string.Empty)
+                            if (string.IsNullOrEmpty(parsedAssociatedVisitorGroupName))
                             {
                                 // does throw exception "Value cannot be null" - todo: how to clear the group?
                                 //web.AssociatedVisitorGroup = null;
@@ -391,22 +391,30 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
                             group.RequestToJoinLeaveEmailSetting = siteGroup.RequestToJoinLeaveEmailSetting;
                             groupNeedsUpdate = true;
                         }
-                        if (parsedGroupOwner != null && group.Owner.LoginName != parsedGroupOwner)
+                        if (parsedGroupOwner != null)
                         {
-                            if (parsedGroupTitle != parsedGroupOwner)
+                            if (Int32.TryParse(parsedGroupOwner, out int roleAssignmentPrincipalId))
                             {
-                                Principal ownerPrincipal = allGroups.FirstOrDefault(gr => gr.LoginName.Equals(parsedGroupOwner, StringComparison.OrdinalIgnoreCase));
-                                if (ownerPrincipal == null)
+                                parsedGroupOwner = allGroups.FirstOrDefault(g => g.Id.Equals(roleAssignmentPrincipalId))?.LoginName;
+                            }
+
+                            if (group.Owner.LoginName != parsedGroupOwner)
+                            {
+                                if (parsedGroupTitle != parsedGroupOwner)
                                 {
-                                    ownerPrincipal = web.EnsureUser(parsedGroupOwner);
+                                    Principal ownerPrincipal = allGroups.FirstOrDefault(gr => gr.LoginName.Equals(parsedGroupOwner, StringComparison.OrdinalIgnoreCase));
+                                    if (ownerPrincipal == null)
+                                    {
+                                        ownerPrincipal = web.EnsureUser(parsedGroupOwner);
+                                    }
+                                    group.Owner = ownerPrincipal;
                                 }
-                                group.Owner = ownerPrincipal;
+                                else
+                                {
+                                    group.Owner = group;
+                                }
+                                groupNeedsUpdate = true;
                             }
-                            else
-                            {
-                                group.Owner = group;
-                            }
-                            groupNeedsUpdate = true;
                         }
                         if (groupNeedsUpdate)
                         {
@@ -727,9 +735,11 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
                 var visitors = new List<User>();
                 var siteSecurity = new SiteSecurity();
 
+                string groupSiteTitle = System.Text.RegularExpressions.Regex.Replace(web.Title, "[\"/\\[\\]\\\\:|<>+=;,?*\'@]", "_");
+
                 if (!ownerGroup.ServerObjectIsNull.Value)
                 {
-                    siteSecurity.AssociatedOwnerGroup = ownerGroup.Title.Replace(web.Title, "{sitetitle}");
+                    siteSecurity.AssociatedOwnerGroup = ownerGroup.Title.Replace(groupSiteTitle, "{groupsitetitle}");
                     associatedGroupIds.Add(ownerGroup.Id);
                     foreach (var member in ownerGroup.Users)
                     {
@@ -738,7 +748,7 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
                 }
                 if (!memberGroup.ServerObjectIsNull.Value)
                 {
-                    siteSecurity.AssociatedMemberGroup = memberGroup.Title.Replace(web.Title, "{sitetitle}");
+                    siteSecurity.AssociatedMemberGroup = memberGroup.Title.Replace(groupSiteTitle, "{groupsitetitle}");
                     associatedGroupIds.Add(memberGroup.Id);
                     foreach (var member in memberGroup.Users)
                     {
@@ -747,7 +757,7 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
                 }
                 if (!visitorGroup.ServerObjectIsNull.Value)
                 {
-                    siteSecurity.AssociatedVisitorGroup = visitorGroup.Title.Replace(web.Title, "{sitetitle}");
+                    siteSecurity.AssociatedVisitorGroup = visitorGroup.Title.Replace(groupSiteTitle, "{groupsitetitle}");
                     associatedGroupIds.Add(visitorGroup.Id);
                     foreach (var member in visitorGroup.Users)
                     {
@@ -801,7 +811,7 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
                             scope.LogDebug("Processing group {0}", group.Title);
                             var siteGroup = new SiteGroup()
                             {
-                                Title = !string.IsNullOrEmpty(web.Title) ? group.Title.Replace(web.Title, "{sitename}") : group.Title,
+                                Title = !string.IsNullOrEmpty(web.Title) ? group.Title.Replace(groupSiteTitle, "{groupsitename}") : group.Title,
                                 AllowMembersEditMembership = group.AllowMembersEditMembership,
                                 AutoAcceptRequestToJoinLeave = group.AutoAcceptRequestToJoinLeave,
                                 AllowRequestToJoinLeave = group.AllowRequestToJoinLeave,
@@ -950,7 +960,7 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
             }
             if (!string.IsNullOrEmpty(web.Title))
             {
-                loginName = loginName.Replace(web.Title, "{sitename}");
+                loginName = loginName.Replace(System.Text.RegularExpressions.Regex.Replace(web.Title, "[\"/\\[\\]\\\\:|<>+=;,?*\'@]", "_"), "{groupsitename}"); 
             }
             return loginName;
         }
