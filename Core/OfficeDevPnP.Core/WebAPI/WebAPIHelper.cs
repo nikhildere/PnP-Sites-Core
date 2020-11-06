@@ -198,7 +198,7 @@ namespace OfficeDevPnP.Core.WebAPI
                         Secure = true,
                         HttpOnly = httpOnly,
                     };
-
+                    cookie.Path += ";SameSite=None";
                     page.Response.AppendCookie(cookie);
 
                     //Register the ClientContext

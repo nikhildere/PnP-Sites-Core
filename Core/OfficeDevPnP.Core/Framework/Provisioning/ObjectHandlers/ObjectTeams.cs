@@ -271,12 +271,14 @@ namespace OfficeDevPnP.Core.Framework.Provisioning.ObjectHandlers
                     }
                     catch (Exception)
                     {
-                        // In case of exception wait for 5 secs
-                        System.Threading.Thread.Sleep(TimeSpan.FromSeconds(5));
+                        // In case of exception wait for 30 secs
+                        //System.Threading.Thread.Sleep(TimeSpan.FromSeconds(5));
+                        scope.LogInfo($"Attempt {iterations}: Group creation pending for Group ID: {createdGroupId}");
+                        System.Threading.Thread.Sleep(TimeSpan.FromSeconds(30));
                     }
 
-                    // Don't wait more than 1 minute
-                    if (iterations > 12)
+                    // Don't wait more than 12 minutes
+                    if (iterations > 24)
                     {
                         wait = false;
                     }
